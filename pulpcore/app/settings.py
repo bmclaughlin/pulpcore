@@ -98,6 +98,8 @@ for app in OPTIONAL_APPS:
 
 MIDDLEWARE = [
     "django_guid.middleware.GuidMiddleware",
+    # "requestlogs.middleware.RequestLogsMiddleware",
+    # "requestlogs.middleware.RequestIdMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
@@ -147,6 +149,7 @@ REST_FRAMEWORK = {
     "UPLOADED_FILES_USE_URL": False,
     "DEFAULT_VERSIONING_CLASS": "rest_framework.versioning.URLPathVersioning",
     "DEFAULT_SCHEMA_CLASS": "pulpcore.openapi.PulpAutoSchema",
+    "EXCEPTION_HANDLER": "requestlogs.views.exception_handler",
 }
 
 # Password validation
@@ -192,15 +195,28 @@ LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
     "formatters": {
-        "simple": {"format": "pulp [%(correlation_id)s]: %(name)s:%(levelname)s: %(message)s"}
+        "simple": {"format": "pulp [%(correlation_id)s]: %(name)s:%(levelname)s: %(message)s"},
+        'verbose': {
+            'format': '%(message)s'
+        },
     },
-    "filters": {"correlation_id": {"()": "django_guid.log_filters.CorrelationId"}},
+    "filters": {
+        "correlation_id": {"()": "django_guid.log_filters.CorrelationId"},
+        "request_id_context": {'()': "requestlogs.logging.RequestIdContext"},
+    },
     "handlers": {
         "console": {
             "class": "logging.StreamHandler",
             "formatter": "simple",
             "filters": ["correlation_id"],
-        }
+        },
+        'requestlogs_to_file': {
+            'level': 'INFO',
+            'class': 'logging.FileHandler',
+            'filename': '/var/lib/pulp/logs/pulp_audit_log.log',
+            'filters': ['request_id_context'],
+            "formatter": "verbose",
+        },
     },
     "loggers": {
         "": {
@@ -214,7 +230,22 @@ LOGGING = {
             "level": "WARNING",
             "propagate": False,
         },
+        'requestlogs': {
+            'handlers': ['requestlogs_to_file'],
+            'level': 'INFO',
+            'propagate': False,
+        },
     },
+}
+
+REQUESTLOGS = {
+    'STORAGE_CLASS': 'requestlogs.storages.LoggingStorage',
+    'ENTRY_CLASS': 'requestlogs.entries.RequestLogEntry',
+    'SERIALIZER_CLASS': 'requestlogs.storages.BaseEntrySerializer',
+    'SECRETS': ['password', 'token'],
+    'ATTRIBUTE_NAME': '_requestlog',
+    'METHODS': ('PUT', 'PATCH', 'POST', 'DELETE'),
+    'SERIALIZER_CLASS': 'requestlogs.storages.RequestIdEntrySerializer',
 }
 
 DRF_ACCESS_POLICY = {"reusable_conditions": "pulpcore.app.global_access_conditions"}
