@@ -8,6 +8,7 @@ from django.db.models import Q, Exists, OuterRef, CharField
 from django.db.models.functions import Cast
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Permission
+from django.contrib.auth.models import Group as BaseGroup
 from django.contrib.contenttypes.models import ContentType
 from guardian.shortcuts import (
     get_objects_for_user as get_objects_for_user_guardian,
@@ -42,7 +43,7 @@ def assign_role(rolename, entity, obj=None):
             raise BadRequest(
                 _("The role '{}' does not carry any permission for that object.").format(rolename)
             )
-    if isinstance(entity, Group):
+    if isinstance(entity, Group) or isinstance(entity, BaseGroup):
         GroupRole.objects.create(role=role, group=entity, content_object=obj)
     else:
         UserRole.objects.create(role=role, user=entity, content_object=obj)
@@ -62,7 +63,7 @@ def remove_role(rolename, entity, obj=None):
         role = Role.objects.get(name=rolename)
     except Role.DoesNotExist:
         raise BadRequest(_("The role '{}' does not exist.").format(rolename))
-    if isinstance(entity, Group):
+    if isinstance(entity, Group) or isinstance(entity, BaseGroup):
         qs = GroupRole.objects.filter(role=role, group=entity)
     else:
         qs = UserRole.objects.filter(role=role, user=entity)
